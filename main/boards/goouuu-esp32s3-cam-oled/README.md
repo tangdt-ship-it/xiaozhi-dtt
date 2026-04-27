@@ -28,3 +28,9 @@ Or package with release script:
 ```bash
 python scripts/release.py main/boards/goouuu-esp32s3-cam-oled
 ```
+
+## Camera clarity notes (important)
+
+- This board profile uses VGA + sharpness tuning for clearer frames in object-recognition scenarios.
+- Many ESP32-S3-CAM modules use manual-focus lenses. If the image is still blurry, rotate the camera lens ring slightly to refocus.
+- OLED 128x32 is monochrome and extremely low resolution, so it is not suitable for meaningful camera preview. Use server-side snapshot/vision results for recognition feedback.

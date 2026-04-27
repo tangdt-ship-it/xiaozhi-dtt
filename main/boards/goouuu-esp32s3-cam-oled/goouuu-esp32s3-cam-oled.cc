@@ -11,6 +11,7 @@
 #include <driver/ledc.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
+#include <esp_camera.h>
 #include <esp_log.h>
 
 #define TAG "GOOUUU_ESP32S3_CAM_OLED"
@@ -112,9 +113,9 @@ private:
             .ledc_timer = LEDC_TIMER_0,
             .ledc_channel = LEDC_CHANNEL_0,
             .pixel_format = PIXFORMAT_RGB565,
-            .frame_size = FRAMESIZE_QVGA,
-            .jpeg_quality = 12,
-            .fb_count = 2,
+            .frame_size = FRAMESIZE_VGA,
+            .jpeg_quality = 10,
+            .fb_count = 1,
             .fb_location = CAMERA_FB_IN_PSRAM,
             .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
             .sccb_i2c_port = (i2c_port_t)0,
@@ -126,6 +127,20 @@ private:
             return;
         }
         camera_->SetVFlip(true);
+
+        sensor_t* sensor = esp_camera_sensor_get();
+        if (sensor == nullptr) {
+            ESP_LOGW(TAG, "sensor is null, skip camera tuning");
+            return;
+        }
+
+        // Improve edge details for object recognition use-cases.
+        sensor->set_contrast(sensor, 1);
+        sensor->set_brightness(sensor, 0);
+        sensor->set_saturation(sensor, 0);
+        sensor->set_quality(sensor, 10);
+        sensor->set_framesize(sensor, FRAMESIZE_VGA);
+        ESP_LOGI(TAG, "Camera tuned for sharper image (VGA, contrast=1, quality=10)");
     }
 
 public:
