@@ -11,8 +11,8 @@ Custom board profile for Goouuu ESP32-S3-WROOM-1-N16R8 camera dev board with the
   - BCLK: GPIO40
   - LRC: GPIO41
 - SSD1306 OLED 128x32 (I2C)
-  - SCL: GPIO36
-  - SDA: GPIO37
+  - SCL: GPIO21
+  - SDA: GPIO47
 
 ## Build
 
