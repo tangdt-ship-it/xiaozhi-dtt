@@ -13,6 +13,8 @@
 #include <esp_lcd_panel_vendor.h>
 #include <esp_camera.h>
 #include <esp_log.h>
+#include <esp_timer.h>
+#include <cstdio>
 
 #define TAG "GOOUUU_ESP32S3_CAM_OLED"
 
@@ -24,6 +26,8 @@ private:
     Button boot_button_;
     Display* display_ = nullptr;
     Esp32Camera* camera_ = nullptr;
+    bool camera_health_mode_ = false;
+    esp_timer_handle_t camera_health_timer_ = nullptr;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -89,6 +93,81 @@ private:
         boot_button_.OnLongPress([this]() {
             EnterWifiConfigMode();
         });
+
+        // Double click to toggle camera health mode on OLED:
+        // shows capture status + average brightness periodically.
+        boot_button_.OnDoubleClick([this]() {
+            ToggleCameraHealthMode();
+        });
+    }
+
+    void InitializeCameraHealthTimer() {
+        esp_timer_create_args_t args = {
+            .callback = [](void* arg) {
+                auto* self = static_cast<GoouuuEsp32S3CamOledBoard*>(arg);
+                self->RunCameraHealthCheck();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "cam_health_timer",
+            .skip_unhandled_events = true,
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&args, &camera_health_timer_));
+    }
+
+    void ToggleCameraHealthMode() {
+        camera_health_mode_ = !camera_health_mode_;
+        if (camera_health_mode_) {
+            ESP_ERROR_CHECK(esp_timer_start_periodic(camera_health_timer_, 2 * 1000 * 1000));
+            GetDisplay()->ShowNotification("CAM HEALTH ON", 1200);
+        } else {
+            esp_timer_stop(camera_health_timer_);
+            GetDisplay()->ShowNotification("CAM HEALTH OFF", 1200);
+        }
+    }
+
+    void RunCameraHealthCheck() {
+        if (!camera_health_mode_) {
+            return;
+        }
+
+        camera_fb_t* fb = esp_camera_fb_get();
+        if (fb == nullptr) {
+            GetDisplay()->ShowNotification("CAM FAIL", 1500);
+            return;
+        }
+
+        int avg_luma = -1;
+        if (fb->format == PIXFORMAT_RGB565 && fb->buf != nullptr) {
+            // Sample pixels to reduce CPU load.
+            const uint16_t* pixels = reinterpret_cast<const uint16_t*>(fb->buf);
+            const size_t pixel_count = fb->len / 2;
+            const size_t step = 8;
+            uint64_t sum = 0;
+            size_t cnt = 0;
+            for (size_t i = 0; i < pixel_count; i += step) {
+                uint16_t p = pixels[i];
+                int r = ((p >> 11) & 0x1F) << 3;
+                int g = ((p >> 5) & 0x3F) << 2;
+                int b = (p & 0x1F) << 3;
+                int y = (77 * r + 150 * g + 29 * b) >> 8;
+                sum += static_cast<uint32_t>(y);
+                cnt++;
+            }
+            if (cnt > 0) {
+                avg_luma = static_cast<int>(sum / cnt);
+            }
+        }
+
+        esp_camera_fb_return(fb);
+
+        char text[32] = {0};
+        if (avg_luma >= 0) {
+            snprintf(text, sizeof(text), "CAM OK L:%d", avg_luma);
+        } else {
+            snprintf(text, sizeof(text), "CAM OK");
+        }
+        GetDisplay()->ShowNotification(text, 1200);
     }
 
     void InitializeCamera() {
@@ -147,6 +226,7 @@ public:
     GoouuuEsp32S3CamOledBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeDisplayI2c();
         InitializeSsd1306Display();
+        InitializeCameraHealthTimer();
         InitializeButtons();
         InitializeCamera();
     }

@@ -34,3 +34,21 @@ python scripts/release.py main/boards/goouuu-esp32s3-cam-oled
 - This board profile uses VGA + sharpness tuning for clearer frames in object-recognition scenarios.
 - Many ESP32-S3-CAM modules use manual-focus lenses. If the image is still blurry, rotate the camera lens ring slightly to refocus.
 - OLED 128x32 is monochrome and extremely low resolution, so it is not suitable for meaningful camera preview. Use server-side snapshot/vision results for recognition feedback.
+
+## Camera health mode on OLED
+
+- Double click the BOOT button to toggle camera health mode.
+- When enabled, OLED will periodically show:
+  - `CAM OK L:xxx` (capture success + average brightness)
+  - `CAM FAIL` (capture failure)
+
+## Default settings in this board profile
+
+- Language: Vietnamese (`CONFIG_LANGUAGE_VI_VN=y`)
+- Board type: Goouuu ESP32-S3-CAM + OLED
+- Wake word: custom wake word `hi lyli` (display text `Hi LyLi`)
+
+## About playing music from YouTube/Zing MP3
+
+This firmware profile itself does not directly implement platform-specific music streaming clients for youtube.com/zingmp3.vn.
+To support voice-command music playback from those services, the server-side assistant/MCP tools must provide URL parsing, search, authorization and stream proxy capability.
