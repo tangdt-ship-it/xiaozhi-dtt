@@ -46,7 +46,7 @@ python scripts/release.py main/boards/goouuu-esp32s3-cam-oled
 
 - Language: Vietnamese (`CONFIG_LANGUAGE_VI_VN=y`)
 - Board type: Goouuu ESP32-S3-CAM + OLED
-- Wake word: custom wake word `hi lyli` (display text `Hi LyLi`)
+- Wake word: custom wake word `hi lily` (display text `Hi LiLy`)
 
 ## About playing music from YouTube/Zing MP3
 

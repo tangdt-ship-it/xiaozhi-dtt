@@ -35,7 +35,7 @@ config CUSTOM_ASSETS_FILE
 
 choice
     prompt "Default Language"
-    default LANGUAGE_ZH_CN
+    default LANGUAGE_VI_VN
     help
         Select device display language
 
@@ -119,7 +119,7 @@ endchoice
 
 choice BOARD_TYPE
     prompt "Board Type"
-    default BOARD_TYPE_BREAD_COMPACT_WIFI
+    default BOARD_TYPE_GOOUUU_ESP32S3_CAM_OLED
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
@@ -728,7 +728,7 @@ config USE_MULTILINE_CHAT_MESSAGE
 
 choice WAKE_WORD_TYPE
     prompt "Wake Word Implementation Type"
-    default USE_AFE_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
+    default USE_CUSTOM_WAKE_WORD if (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM
     default WAKE_WORD_DISABLED
     help
         Choose the type of wake word implementation to use
@@ -760,14 +760,14 @@ endchoice
 
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
-    default "xiao tu dou"
+    default "hi lily"
     depends on USE_CUSTOM_WAKE_WORD
     help
         Custom Wake Word, use pinyin for Chinese, separated by spaces
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
-    default "小土豆"
+    default "Hi LiLy"
     depends on USE_CUSTOM_WAKE_WORD
     help
         Greeting sent to the server after wake word detection
