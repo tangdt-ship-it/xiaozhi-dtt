@@ -168,6 +168,33 @@ def _search_zing_track_url(keyword: str) -> str:
     return "https://zingmp3.vn" + match.group(1)
 
 
+def _extract_first_track_url_from_album_page(album_url: str) -> str:
+    html = _fetch_text(album_url)
+    pattern = r'href=\"(/bai-hat/[^\"\\s]+\\.html)\"'
+    match = re.search(pattern, html)
+    if not match:
+        raise RuntimeError("No track URL found in album page")
+    return "https://zingmp3.vn" + match.group(1)
+
+
+def _extract_audio_url_from_zing_track_page(track_url: str) -> Optional[str]:
+    """
+    Fallback extractor for Zing track pages when yt-dlp cannot provide stream URL.
+    """
+    html = _fetch_text(track_url)
+    patterns = [
+        r'"128":"(https?:\\\\?/\\\\?/[^"]+\\.mp3[^"]*)"',
+        r'"320":"(https?:\\\\?/\\\\?/[^"]+\\.mp3[^"]*)"',
+        r'"hls":"(https?:\\\\?/\\\\?/[^"]+\\.m3u8[^"]*)"',
+    ]
+    for p in patterns:
+        m = re.search(p, html)
+        if m:
+            raw = m.group(1)
+            return raw.replace("\\/", "/")
+    return None
+
+
 def _resolve_provider_query(provider: str, query: str) -> tuple[str, str]:
     """
     Return (resolved_input, title):
@@ -245,11 +272,27 @@ def play_music():
     if not device_id:
         return jsonify({"ok": False, "error": "missing device_id"}), 400
 
+    resolved_query = query
     try:
         resolved_query, _ = _resolve_provider_query(provider, query)
         stream_url, title = _resolve_audio_with_ytdlp(resolved_query)
     except Exception as exc:
-        return jsonify({"ok": False, "error": f"resolver failed: {exc}"}), 502
+        # Zing fallback path for cases where yt-dlp cannot expose stream URL.
+        if provider == "zingmp3":
+            try:
+                fallback_track_url = resolved_query
+                if "/album/" in resolved_query:
+                    fallback_track_url = _extract_first_track_url_from_album_page(resolved_query)
+                fallback_stream = _extract_audio_url_from_zing_track_page(fallback_track_url)
+                if fallback_stream:
+                    stream_url = fallback_stream
+                    title = "Zing fallback stream"
+                else:
+                    raise RuntimeError("No fallback audio URL found in track page")
+            except Exception as fb_exc:
+                return jsonify({"ok": False, "error": f"resolver failed: {exc}; fallback failed: {fb_exc}"}), 502
+        else:
+            return jsonify({"ok": False, "error": f"resolver failed: {exc}"}), 502
 
     session = SessionState(
         device_id=device_id,

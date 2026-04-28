@@ -28,6 +28,7 @@ Capabilities:
 - Resolve direct audio stream URL from a ZingMP3 track URL via `yt-dlp`.
 - Resolve by Zing keyword query (best-effort) or direct Zing track URL.
 - Better handling for album/playlist links by trying entries in order and selecting the first playable audio stream.
+- Includes HTML fallback extraction for Zing track pages when yt-dlp cannot expose direct stream URL.
 - Keep per-device session state.
 - Accept control commands (`pause/resume/next/prev/stop`) for orchestration integration.
 - Optional dispatch hook to your assistant orchestrator by setting `MUSIC_DISPATCH_URL`.
