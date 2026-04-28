@@ -75,6 +75,9 @@ The firmware now exposes MCP tools to integrate with a backend music gateway:
   - Response JSON (example):
     - `{"ok": true}`
 
+- `GET {gateway_url}/v1/music/session/{device_id}`
+  - For diagnostics: fetch current session state.
+
 The gateway is responsible for searching tracks on zingmp3.vn, handling authorization/token logic, and dispatching playable audio streams to this device session.
 
 For an end-to-end runnable reference gateway, see:

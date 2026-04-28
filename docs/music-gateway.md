@@ -28,11 +28,19 @@ Capabilities:
 - Resolve direct audio stream URL from a ZingMP3 track URL via `yt-dlp`.
 - Keep per-device session state.
 - Accept control commands (`pause/resume/next/prev/stop`) for orchestration integration.
+- Optional dispatch hook to your assistant orchestrator by setting `MUSIC_DISPATCH_URL`.
 
 ## Run locally
 
 ```bash
 pip install flask yt-dlp
+python scripts/music_gateway_server.py --host 0.0.0.0 --port 8787
+```
+
+With dispatch enabled (recommended for real playback flow):
+
+```bash
+MUSIC_DISPATCH_URL=http://127.0.0.1:9000/v1/device/music/dispatch \
 python scripts/music_gateway_server.py --host 0.0.0.0 --port 8787
 ```
 
@@ -69,8 +77,14 @@ curl -X POST http://127.0.0.1:8787/v1/music/control \
   }'
 ```
 
+### 3) Read current device session
+
+```bash
+curl http://127.0.0.1:8787/v1/music/session/AA:BB:CC:DD:EE:FF
+```
+
 ## Important notes
 
 - For `provider=zingmp3`, this reference implementation expects a full Zing track URL as `query`.
 - Search-by-keyword on Zing is intentionally not hard-coded because endpoint policies may change.
-- In production, place this gateway behind your assistant orchestrator to dispatch returned stream URLs/audio into the device playback channel.
+- In production, use `MUSIC_DISPATCH_URL` to forward resolved stream info into your assistant orchestration path that actually sends playback commands to device sessions.

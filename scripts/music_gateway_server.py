@@ -19,9 +19,13 @@ Run:
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import time
 from dataclasses import dataclass, asdict
-from typing import Dict, Optional
+from typing import Dict
+from urllib import request as urlrequest
+from urllib.error import URLError
 
 from flask import Flask, jsonify, request
 
@@ -47,6 +51,7 @@ class SessionState:
 
 
 _sessions: Dict[str, SessionState] = {}
+_dispatch_url: str = os.getenv("MUSIC_DISPATCH_URL", "").strip()
 
 
 def _resolve_audio_with_ytdlp(url_or_query: str) -> tuple[str, str]:
@@ -76,9 +81,51 @@ def _resolve_audio_with_ytdlp(url_or_query: str) -> tuple[str, str]:
     return stream_url, title
 
 
+def _dispatch_play_to_orchestrator(session: SessionState) -> tuple[bool, str]:
+    """
+    Optional: dispatch resolved stream URL to assistant orchestrator / device bridge.
+    Set MUSIC_DISPATCH_URL env var to enable.
+    """
+    if not _dispatch_url:
+        return False, "dispatch disabled (MUSIC_DISPATCH_URL is empty)"
+
+    payload = {
+        "type": "music.play",
+        "device_id": session.device_id,
+        "client_id": session.client_id,
+        "provider": session.provider,
+        "title": session.title,
+        "stream_url": session.stream_url,
+        "query": session.query,
+    }
+    body = json.dumps(payload).encode("utf-8")
+    req = urlrequest.Request(
+        _dispatch_url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=8) as resp:
+            status = getattr(resp, "status", 200)
+            if status < 200 or status >= 300:
+                return False, f"dispatch http status={status}"
+    except URLError as exc:
+        return False, f"dispatch error: {exc}"
+    return True, "dispatch success"
+
+
 @app.route("/healthz", methods=["GET"])
 def healthz():
-    return jsonify({"ok": True, "service": "music-gateway", "time": int(time.time())})
+    return jsonify(
+        {
+            "ok": True,
+            "service": "music-gateway",
+            "time": int(time.time()),
+            "dispatch_enabled": bool(_dispatch_url),
+            "dispatch_url": _dispatch_url,
+        }
+    )
 
 
 @app.route("/v1/music/play", methods=["POST"])
@@ -120,6 +167,7 @@ def play_music():
         updated_at=int(time.time()),
     )
     _sessions[device_id] = session
+    dispatched, dispatch_message = _dispatch_play_to_orchestrator(session)
 
     return jsonify(
         {
@@ -129,6 +177,8 @@ def play_music():
             "provider": provider,
             "title": title,
             "stream_url": stream_url,
+            "dispatched": dispatched,
+            "dispatch_message": dispatch_message,
             "session": asdict(session),
         }
     )
@@ -154,6 +204,14 @@ def control_music():
     _sessions[device_id] = session
 
     return jsonify({"ok": True, "message": "control updated", "session": asdict(session)})
+
+
+@app.route("/v1/music/session/<device_id>", methods=["GET"])
+def get_session(device_id: str):
+    session = _sessions.get(device_id)
+    if session is None:
+        return jsonify({"ok": False, "error": "session not found"}), 404
+    return jsonify({"ok": True, "session": asdict(session)})
 
 
 def main() -> None:
