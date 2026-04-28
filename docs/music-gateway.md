@@ -41,6 +41,19 @@ pip install flask yt-dlp
 python scripts/music_gateway_server.py --host 0.0.0.0 --port 8787
 ```
 
+### Windows (PowerShell) - exactly where to run each step
+
+Use **2 PowerShell windows**:
+
+- **Window A (server window):** start and keep gateway running.
+- **Window B (test window):** send API requests (`healthz`, `library`, `play`...).
+
+In **both windows**, go to repo folder first:
+
+```powershell
+cd C:\Espressif\frameworks\esp-idf-v5.5.2\xiaozhi-dtt
+```
+
 Run with local music directory:
 
 ```bash
@@ -71,6 +84,25 @@ Health check:
 ```bash
 curl http://127.0.0.1:8787/healthz
 ```
+
+If you get `404` for `/v1/music/library/reload`:
+
+1. Usually you are running an older script version. Pull latest branch, then restart gateway.
+2. Verify route exists in your local file:
+
+```powershell
+rg -n "v1/music/library/reload" scripts/music_gateway_server.py
+```
+
+3. Verify health reports current version/features:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/healthz
+```
+
+You should see:
+- `version`
+- `features.local_library = true`
 
 ## API examples
 

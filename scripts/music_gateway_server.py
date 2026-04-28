@@ -41,6 +41,7 @@ except Exception as exc:  # pragma: no cover
 
 
 app = Flask(__name__)
+SERVICE_VERSION = "2026-04-28-local-vn-1"
 
 
 @dataclass
@@ -341,6 +342,7 @@ def healthz():
         {
             "ok": True,
             "service": "music-gateway",
+            "version": SERVICE_VERSION,
             "time": int(time.time()),
             "dispatch_enabled": bool(_dispatch_url),
             "dispatch_url": _dispatch_url,
@@ -349,6 +351,10 @@ def healthz():
             "yt_dlp_cookiefile_exists": _cookie_file_exists,
             "library_dir": _library_dir,
             "library_tracks": len(_local_tracks_by_id),
+            "features": {
+                "local_library": True,
+                "zing_resolver": True,
+            },
         }
     )
 
@@ -368,6 +374,7 @@ def local_media(track_id: str):
 
 
 @app.route("/v1/music/library", methods=["GET"])
+@app.route("/v1/music/library/", methods=["GET"])
 def list_library():
     return jsonify(
         {
@@ -379,7 +386,8 @@ def list_library():
     )
 
 
-@app.route("/v1/music/library/reload", methods=["POST"])
+@app.route("/v1/music/library/reload", methods=["POST", "GET"])
+@app.route("/v1/music/library/reload/", methods=["POST", "GET"])
 def reload_library():
     count = _load_local_library()
     return jsonify({"ok": True, "library_dir": _library_dir, "count": count})
