@@ -15,6 +15,7 @@
 #include "oled_display.h"
 #include "board.h"
 #include "settings.h"
+#include "system_info.h"
 #include "lvgl_theme.h"
 #include "lvgl_display.h"
 
@@ -146,6 +147,106 @@ void McpServer::AddUserOnlyTools() {
                 app.Reboot();
             });
             return true;
+        });
+
+    // Online music control via backend gateway
+    AddUserOnlyTool("self.music.set_gateway_url",
+        "Set music gateway URL used to control online playback (e.g. zingmp3/youtube provider on server side).",
+        PropertyList({
+            Property("url", kPropertyTypeString)
+        }),
+        [](const PropertyList& properties) -> ReturnValue {
+            auto url = properties["url"].value<std::string>();
+            Settings settings("music", true);
+            settings.SetString("gateway_url", url);
+            return true;
+        });
+
+    AddUserOnlyTool("self.music.play_online",
+        "Play online music by query. The server-side music gateway must handle provider search, auth and stream dispatch.",
+        PropertyList({
+            Property("query", kPropertyTypeString),
+            Property("provider", kPropertyTypeString, "zingmp3")
+        }),
+        [](const PropertyList& properties) -> ReturnValue {
+            Settings settings("music", false);
+            auto gateway_url = settings.GetString("gateway_url");
+            if (gateway_url.empty()) {
+                throw std::runtime_error("Music gateway URL is not set. Use self.music.set_gateway_url first.");
+            }
+
+            auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+            http->SetHeader("Content-Type", "application/json");
+            if (!http->Open("POST", gateway_url + "/v1/music/play")) {
+                throw std::runtime_error("Failed to open music gateway");
+            }
+
+            auto query = properties["query"].value<std::string>();
+            auto provider = properties["provider"].value<std::string>();
+            cJSON* payload_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(payload_json, "query", query.c_str());
+            cJSON_AddStringToObject(payload_json, "provider", provider.c_str());
+            cJSON_AddStringToObject(payload_json, "device_id", SystemInfo::GetMacAddress().c_str());
+            cJSON_AddStringToObject(payload_json, "client_id", Board::GetInstance().GetUuid().c_str());
+            auto payload = cJSON_PrintUnformatted(payload_json);
+            cJSON_Delete(payload_json);
+            if (payload == nullptr) {
+                throw std::runtime_error("Failed to create JSON payload");
+            }
+
+            http->Write(payload, strlen(payload));
+            cJSON_free(payload);
+            http->Write("", 0);
+
+            int status = http->GetStatusCode();
+            auto result = http->ReadAll();
+            http->Close();
+            if (status < 200 || status >= 300) {
+                throw std::runtime_error("Music gateway returned status: " + std::to_string(status));
+            }
+            return result;
+        });
+
+    AddUserOnlyTool("self.music.control",
+        "Control online music playback through music gateway. Action: pause, resume, next, prev, stop.",
+        PropertyList({
+            Property("action", kPropertyTypeString)
+        }),
+        [](const PropertyList& properties) -> ReturnValue {
+            Settings settings("music", false);
+            auto gateway_url = settings.GetString("gateway_url");
+            if (gateway_url.empty()) {
+                throw std::runtime_error("Music gateway URL is not set. Use self.music.set_gateway_url first.");
+            }
+
+            auto http = Board::GetInstance().GetNetwork()->CreateHttp(3);
+            http->SetHeader("Content-Type", "application/json");
+            if (!http->Open("POST", gateway_url + "/v1/music/control")) {
+                throw std::runtime_error("Failed to open music gateway");
+            }
+
+            auto action = properties["action"].value<std::string>();
+            cJSON* payload_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(payload_json, "action", action.c_str());
+            cJSON_AddStringToObject(payload_json, "device_id", SystemInfo::GetMacAddress().c_str());
+            cJSON_AddStringToObject(payload_json, "client_id", Board::GetInstance().GetUuid().c_str());
+            auto payload = cJSON_PrintUnformatted(payload_json);
+            cJSON_Delete(payload_json);
+            if (payload == nullptr) {
+                throw std::runtime_error("Failed to create JSON payload");
+            }
+
+            http->Write(payload, strlen(payload));
+            cJSON_free(payload);
+            http->Write("", 0);
+
+            int status = http->GetStatusCode();
+            auto result = http->ReadAll();
+            http->Close();
+            if (status < 200 || status >= 300) {
+                throw std::runtime_error("Music gateway returned status: " + std::to_string(status));
+            }
+            return result;
         });
 
     // Firmware upgrade

@@ -52,3 +52,27 @@ python scripts/release.py main/boards/goouuu-esp32s3-cam-oled
 
 This firmware profile itself does not directly implement platform-specific music streaming clients for youtube.com/zingmp3.vn.
 To support voice-command music playback from those services, the server-side assistant/MCP tools must provide URL parsing, search, authorization and stream proxy capability.
+
+## Online music tools (implemented in firmware MCP)
+
+The firmware now exposes MCP tools to integrate with a backend music gateway:
+
+- `self.music.set_gateway_url(url)`
+- `self.music.play_online(query, provider="zingmp3")`
+- `self.music.control(action)` where action is one of: `pause`, `resume`, `next`, `prev`, `stop`
+
+### Suggested gateway API contract
+
+- `POST {gateway_url}/v1/music/play`
+  - Request JSON:
+    - `query`, `provider`, `device_id`, `client_id`
+  - Response JSON (example):
+    - `{"ok": true, "message": "play dispatched"}`
+
+- `POST {gateway_url}/v1/music/control`
+  - Request JSON:
+    - `action`, `device_id`, `client_id`
+  - Response JSON (example):
+    - `{"ok": true}`
+
+The gateway is responsible for searching tracks on zingmp3.vn, handling authorization/token logic, and dispatching playable audio streams to this device session.
