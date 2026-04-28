@@ -105,23 +105,32 @@ def _resolve_audio_with_ytdlp(url_or_query: str) -> tuple[str, str]:
     if info is None:
         raise RuntimeError("Unable to resolve media info")
 
-    # yt-dlp may return a playlist wrapper (album, playlist...)
+    # yt-dlp may return a playlist wrapper (album, playlist...).
+    # Try entries in order and pick the first playable one.
     if "entries" in info and info["entries"]:
-        first_entry = info["entries"][0]
-        # Sometimes first entry has partial metadata without direct url.
-        # If webpage_url exists, re-resolve for richer fields.
-        first_webpage_url = first_entry.get("webpage_url")
-        if isinstance(first_webpage_url, str) and first_webpage_url:
-            info = ydl.extract_info(first_webpage_url, download=False)
-        else:
-            info = first_entry
+        entries = info["entries"]
+        last_error = "No stream URL returned by resolver"
+        for entry in entries:
+            try:
+                candidate = entry
+                entry_webpage_url = entry.get("webpage_url")
+                if isinstance(entry_webpage_url, str) and entry_webpage_url:
+                    candidate = ydl.extract_info(entry_webpage_url, download=False)
+
+                stream_url = _pick_stream_url_from_info(candidate)
+                if stream_url:
+                    title = candidate.get("title", entry.get("title", "Unknown"))
+                    return stream_url, title
+                last_error = f"No stream URL in entry: {entry.get('title', 'Unknown')}"
+            except Exception as entry_exc:
+                last_error = str(entry_exc)
+                continue
+        raise RuntimeError(last_error)
 
     stream_url = _pick_stream_url_from_info(info)
     title = info.get("title", "Unknown")
-
     if not stream_url:
         raise RuntimeError("No stream URL returned by resolver")
-
     return stream_url, title
 
 
