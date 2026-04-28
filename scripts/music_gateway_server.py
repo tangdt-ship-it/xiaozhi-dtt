@@ -21,11 +21,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, asdict
 from typing import Dict
 from urllib import request as urlrequest
 from urllib.error import URLError
+from urllib.parse import quote
 
 from flask import Flask, jsonify, request
 
@@ -43,6 +45,7 @@ class SessionState:
     device_id: str
     client_id: str
     provider: str
+    original_query: str
     query: str
     title: str
     stream_url: str
@@ -79,6 +82,57 @@ def _resolve_audio_with_ytdlp(url_or_query: str) -> tuple[str, str]:
         raise RuntimeError("No stream URL returned by resolver")
 
     return stream_url, title
+
+
+def _fetch_text(url: str, timeout: int = 8) -> str:
+    req = urlrequest.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+        method="GET",
+    )
+    with urlrequest.urlopen(req, timeout=timeout) as resp:
+        charset = resp.headers.get_content_charset() or "utf-8"
+        return resp.read().decode(charset, errors="ignore")
+
+
+def _search_zing_track_url(keyword: str) -> str:
+    """
+    Resolve first Zing track URL by scraping Zing search page.
+    This is best-effort and may need updates if Zing changes markup.
+    """
+    search_url = f"https://zingmp3.vn/tim-kiem/tat-ca?q={quote(keyword)}"
+    html = _fetch_text(search_url)
+
+    # Typical pattern: /bai-hat/<slug>/<ZW....>.html
+    pattern = r'href=\"(/bai-hat/[^\"\\s]+/ZW[0-9A-Z]+\\.html)\"'
+    match = re.search(pattern, html)
+    if not match:
+        # Fallback: looser route match
+        pattern_fallback = r'href=\"(/bai-hat/[^\"\\s]+\\.html)\"'
+        match = re.search(pattern_fallback, html)
+    if not match:
+        raise RuntimeError("No track URL found from Zing search page")
+
+    return "https://zingmp3.vn" + match.group(1)
+
+
+def _resolve_provider_query(provider: str, query: str) -> tuple[str, str]:
+    """
+    Return (resolved_input, title):
+    - resolved_input is either direct media/page url for yt-dlp.
+    - title may be replaced after final yt-dlp resolution.
+    """
+    provider = provider.lower().strip()
+    if provider == "zingmp3":
+        if "zingmp3.vn" in query:
+            return query, ""
+        # query is keyword => search first track URL from Zing
+        track_url = _search_zing_track_url(query)
+        return track_url, ""
+    # fallback for other providers / generic URLs
+    return query, ""
 
 
 def _dispatch_play_to_orchestrator(session: SessionState) -> tuple[bool, str]:
@@ -141,18 +195,9 @@ def play_music():
     if not device_id:
         return jsonify({"ok": False, "error": "missing device_id"}), 400
 
-    # For "real" Zing playback, pass full zingmp3.vn track URL as query.
-    # Example: https://zingmp3.vn/bai-hat/.../ZWxxxx.html
-    if provider == "zingmp3" and "zingmp3.vn" not in query:
-        return jsonify(
-            {
-                "ok": False,
-                "error": "For provider=zingmp3, query should be a full zingmp3.vn track URL",
-            }
-        ), 400
-
     try:
-        stream_url, title = _resolve_audio_with_ytdlp(query)
+        resolved_query, _ = _resolve_provider_query(provider, query)
+        stream_url, title = _resolve_audio_with_ytdlp(resolved_query)
     except Exception as exc:
         return jsonify({"ok": False, "error": f"resolver failed: {exc}"}), 502
 
@@ -160,7 +205,8 @@ def play_music():
         device_id=device_id,
         client_id=client_id,
         provider=provider,
-        query=query,
+        original_query=query,
+        query=resolved_query,
         title=title,
         stream_url=stream_url,
         action="play",
