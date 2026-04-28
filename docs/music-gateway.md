@@ -47,6 +47,13 @@ MUSIC_DISPATCH_URL=http://127.0.0.1:9000/v1/device/music/dispatch \
 python scripts/music_gateway_server.py --host 0.0.0.0 --port 8787
 ```
 
+If Zing requires authenticated session/cookies for playable audio URLs, add:
+
+```bash
+YTDLP_COOKIES_FILE=/path/to/cookies.txt \
+python scripts/music_gateway_server.py --host 0.0.0.0 --port 8787
+```
+
 Health check:
 
 ```bash

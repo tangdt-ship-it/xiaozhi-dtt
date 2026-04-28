@@ -55,6 +55,7 @@ class SessionState:
 
 _sessions: Dict[str, SessionState] = {}
 _dispatch_url: str = os.getenv("MUSIC_DISPATCH_URL", "").strip()
+_cookie_file: str = os.getenv("YTDLP_COOKIES_FILE", "").strip()
 
 
 def _pick_stream_url_from_info(info: Dict[str, Any]) -> Optional[str]:
@@ -99,6 +100,8 @@ def _resolve_audio_with_ytdlp(url_or_query: str) -> tuple[str, str]:
         "format": "bestaudio/best",
         "noplaylist": True,
     }
+    if _cookie_file:
+        ydl_opts["cookiefile"] = _cookie_file
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url_or_query, download=False)
 
@@ -188,6 +191,8 @@ def _extract_first_track_url_from_album_with_ytdlp(album_url: str) -> str:
         "noplaylist": False,
         "extract_flat": "in_playlist",
     }
+    if _cookie_file:
+        ydl_opts["cookiefile"] = _cookie_file
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(album_url, download=False)
     entries = info.get("entries") if isinstance(info, dict) else None
@@ -283,6 +288,8 @@ def healthz():
             "time": int(time.time()),
             "dispatch_enabled": bool(_dispatch_url),
             "dispatch_url": _dispatch_url,
+            "yt_dlp_cookiefile_enabled": bool(_cookie_file),
+            "yt_dlp_cookiefile": _cookie_file,
         }
     )
 
