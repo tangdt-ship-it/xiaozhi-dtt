@@ -1,0 +1,17 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "goouuu-esp32s3-cam-oled",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_GOOUUU_ESP32S3_CAM_OLED=y",
+                "CONFIG_LANGUAGE_VI_VN=y",
+                "CONFIG_USE_CUSTOM_WAKE_WORD=y",
+                "CONFIG_CUSTOM_WAKE_WORD=\"hi lily\"",
+                "CONFIG_CUSTOM_WAKE_WORD_DISPLAY=\"Hi LiLy\"",
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"partitions/v2/16m.csv\""
+            ]
+        }
+    ]
+}
