@@ -32,11 +32,19 @@ Capabilities:
 - Keep per-device session state.
 - Accept control commands (`pause/resume/next/prev/stop`) for orchestration integration.
 - Optional dispatch hook to your assistant orchestrator by setting `MUSIC_DISPATCH_URL`.
+- Local Vietnamese music library mode (`provider=local` / `local_vn`) that serves files directly from server disk.
 
 ## Run locally
 
 ```bash
 pip install flask yt-dlp
+python scripts/music_gateway_server.py --host 0.0.0.0 --port 8787
+```
+
+Run with local music directory:
+
+```bash
+MUSIC_LIBRARY_DIR=/path/to/your-vietnamese-music \
 python scripts/music_gateway_server.py --host 0.0.0.0 --port 8787
 ```
 
@@ -53,6 +61,10 @@ If Zing requires authenticated session/cookies for playable audio URLs, add:
 YTDLP_COOKIES_FILE=/path/to/cookies.txt \
 python scripts/music_gateway_server.py --host 0.0.0.0 --port 8787
 ```
+
+If `YTDLP_COOKIES_FILE` points to a missing path, resolver will continue without cookie mode. Check `/healthz` fields:
+- `yt_dlp_cookiefile_enabled`
+- `yt_dlp_cookiefile_exists`
 
 Health check:
 
@@ -106,7 +118,40 @@ curl -X POST http://127.0.0.1:8787/v1/music/control \
 curl http://127.0.0.1:8787/v1/music/session/AA:BB:CC:DD:EE:FF
 ```
 
+### 4) Local library APIs (recommended for stable "add Vietnamese music to server")
+
+List imported tracks:
+
+```bash
+curl http://127.0.0.1:8787/v1/music/library
+```
+
+Reload after adding/removing files in `MUSIC_LIBRARY_DIR`:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/music/library/reload
+```
+
+Play by local provider:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/music/play \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "provider": "local_vn",
+    "query": "em cua ngay hom qua",
+    "device_id": "AA:BB:CC:DD:EE:FF",
+    "client_id": "device-client-id"
+  }'
+```
+
+`query` can be:
+- `track_id` from `/v1/music/library`
+- substring of song title
+- substring of relative file path
+
 ## Important notes
 
 - Keyword search is implemented by best-effort HTML parsing on Zing search page and may need updates if Zing changes markup.
 - In production, use `MUSIC_DISPATCH_URL` to forward resolved stream info into your assistant orchestration path that actually sends playback commands to device sessions.
+- For "add Vietnamese music to my own server and play reliably", prioritize `provider=local_vn` + `MUSIC_LIBRARY_DIR`.

@@ -19,17 +19,20 @@ Run:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import mimetypes
 import os
 import re
 import time
 from dataclasses import dataclass, asdict
+from pathlib import Path
 from typing import Dict, Any, Optional
 from urllib import request as urlrequest
 from urllib.error import URLError
 from urllib.parse import quote
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file, abort
 
 try:
     import yt_dlp
@@ -56,6 +59,61 @@ class SessionState:
 _sessions: Dict[str, SessionState] = {}
 _dispatch_url: str = os.getenv("MUSIC_DISPATCH_URL", "").strip()
 _cookie_file: str = os.getenv("YTDLP_COOKIES_FILE", "").strip()
+_cookie_file_exists: bool = bool(_cookie_file) and os.path.isfile(_cookie_file)
+_library_dir: str = os.getenv("MUSIC_LIBRARY_DIR", "data/music").strip()
+
+_audio_extensions = {".mp3", ".m4a", ".aac", ".ogg", ".wav", ".flac"}
+_local_tracks_by_id: Dict[str, Dict[str, str]] = {}
+
+
+def _apply_cookiefile_if_available(ydl_opts: Dict[str, Any]) -> None:
+    if _cookie_file_exists:
+        ydl_opts["cookiefile"] = _cookie_file
+
+
+def _load_local_library() -> int:
+    _local_tracks_by_id.clear()
+    root = Path(_library_dir)
+    if not root.exists() or not root.is_dir():
+        return 0
+
+    for file in root.rglob("*"):
+        if not file.is_file():
+            continue
+        if file.suffix.lower() not in _audio_extensions:
+            continue
+
+        rel = file.relative_to(root).as_posix()
+        track_id = hashlib.sha1(rel.encode("utf-8")).hexdigest()[:16]
+        _local_tracks_by_id[track_id] = {
+            "track_id": track_id,
+            "title": file.stem,
+            "path": str(file.resolve()),
+            "relative_path": rel,
+        }
+    return len(_local_tracks_by_id)
+
+
+def _resolve_local_track(query: str, base_url: str) -> tuple[str, str, str]:
+    q = query.strip().lower()
+    if not q:
+        raise RuntimeError("missing query")
+    if not _local_tracks_by_id:
+        raise RuntimeError("local library is empty")
+
+    if q in _local_tracks_by_id:
+        t = _local_tracks_by_id[q]
+        return f"{base_url}/media/{t['track_id']}", t["title"], t["relative_path"]
+
+    for t in _local_tracks_by_id.values():
+        if q in t["title"].lower():
+            return f"{base_url}/media/{t['track_id']}", t["title"], t["relative_path"]
+
+    for t in _local_tracks_by_id.values():
+        if q in t["relative_path"].lower():
+            return f"{base_url}/media/{t['track_id']}", t["title"], t["relative_path"]
+
+    raise RuntimeError("no local track matched query")
 
 
 def _pick_stream_url_from_info(info: Dict[str, Any]) -> Optional[str]:
@@ -100,8 +158,7 @@ def _resolve_audio_with_ytdlp(url_or_query: str) -> tuple[str, str]:
         "format": "bestaudio/best",
         "noplaylist": True,
     }
-    if _cookie_file:
-        ydl_opts["cookiefile"] = _cookie_file
+    _apply_cookiefile_if_available(ydl_opts)
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url_or_query, download=False)
 
@@ -191,8 +248,7 @@ def _extract_first_track_url_from_album_with_ytdlp(album_url: str) -> str:
         "noplaylist": False,
         "extract_flat": "in_playlist",
     }
-    if _cookie_file:
-        ydl_opts["cookiefile"] = _cookie_file
+    _apply_cookiefile_if_available(ydl_opts)
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(album_url, download=False)
     entries = info.get("entries") if isinstance(info, dict) else None
@@ -290,8 +346,43 @@ def healthz():
             "dispatch_url": _dispatch_url,
             "yt_dlp_cookiefile_enabled": bool(_cookie_file),
             "yt_dlp_cookiefile": _cookie_file,
+            "yt_dlp_cookiefile_exists": _cookie_file_exists,
+            "library_dir": _library_dir,
+            "library_tracks": len(_local_tracks_by_id),
         }
     )
+
+
+@app.route("/media/<track_id>", methods=["GET"])
+def local_media(track_id: str):
+    track = _local_tracks_by_id.get(track_id)
+    if not track:
+        abort(404)
+
+    path = track["path"]
+    if not os.path.isfile(path):
+        abort(404)
+
+    mime, _ = mimetypes.guess_type(path)
+    return send_file(path, mimetype=mime or "application/octet-stream", conditional=True)
+
+
+@app.route("/v1/music/library", methods=["GET"])
+def list_library():
+    return jsonify(
+        {
+            "ok": True,
+            "library_dir": _library_dir,
+            "count": len(_local_tracks_by_id),
+            "tracks": list(_local_tracks_by_id.values()),
+        }
+    )
+
+
+@app.route("/v1/music/library/reload", methods=["POST"])
+def reload_library():
+    count = _load_local_library()
+    return jsonify({"ok": True, "library_dir": _library_dir, "count": count})
 
 
 @app.route("/v1/music/play", methods=["POST"])
@@ -308,29 +399,36 @@ def play_music():
         return jsonify({"ok": False, "error": "missing device_id"}), 400
 
     resolved_query = query
-    try:
-        resolved_query, _ = _resolve_provider_query(provider, query)
-        stream_url, title = _resolve_audio_with_ytdlp(resolved_query)
-    except Exception as exc:
-        # Zing fallback path for cases where yt-dlp cannot expose stream URL.
-        if provider == "zingmp3":
-            try:
-                fallback_track_url = resolved_query
-                if "/album/" in resolved_query:
-                    try:
-                        fallback_track_url = _extract_first_track_url_from_album_with_ytdlp(resolved_query)
-                    except Exception:
-                        fallback_track_url = _extract_first_track_url_from_album_page(resolved_query)
-                fallback_stream = _extract_audio_url_from_zing_track_page(fallback_track_url)
-                if fallback_stream:
-                    stream_url = fallback_stream
-                    title = "Zing fallback stream"
-                else:
-                    raise RuntimeError("No fallback audio URL found in track page")
-            except Exception as fb_exc:
-                return jsonify({"ok": False, "error": f"resolver failed: {exc}; fallback failed: {fb_exc}"}), 502
-        else:
-            return jsonify({"ok": False, "error": f"resolver failed: {exc}"}), 502
+    base_url = request.host_url.rstrip("/")
+    if provider in {"local", "local_vn", "vietmusic"}:
+        try:
+            stream_url, title, resolved_query = _resolve_local_track(query, base_url)
+        except Exception as exc:
+            return jsonify({"ok": False, "error": f"local resolver failed: {exc}"}), 400
+    else:
+        try:
+            resolved_query, _ = _resolve_provider_query(provider, query)
+            stream_url, title = _resolve_audio_with_ytdlp(resolved_query)
+        except Exception as exc:
+            # Zing fallback path for cases where yt-dlp cannot expose stream URL.
+            if provider == "zingmp3":
+                try:
+                    fallback_track_url = resolved_query
+                    if "/album/" in resolved_query:
+                        try:
+                            fallback_track_url = _extract_first_track_url_from_album_with_ytdlp(resolved_query)
+                        except Exception:
+                            fallback_track_url = _extract_first_track_url_from_album_page(resolved_query)
+                    fallback_stream = _extract_audio_url_from_zing_track_page(fallback_track_url)
+                    if fallback_stream:
+                        stream_url = fallback_stream
+                        title = "Zing fallback stream"
+                    else:
+                        raise RuntimeError("No fallback audio URL found in track page")
+                except Exception as fb_exc:
+                    return jsonify({"ok": False, "error": f"resolver failed: {exc}; fallback failed: {fb_exc}"}), 502
+            else:
+                return jsonify({"ok": False, "error": f"resolver failed: {exc}"}), 502
 
     session = SessionState(
         device_id=device_id,
@@ -397,6 +495,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8787)
     args = parser.parse_args()
 
+    _load_local_library()
     app.run(host=args.host, port=args.port)
 
 
