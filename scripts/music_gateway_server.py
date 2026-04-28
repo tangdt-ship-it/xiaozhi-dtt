@@ -24,7 +24,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, asdict
-from typing import Dict
+from typing import Dict, Any, Optional
 from urllib import request as urlrequest
 from urllib.error import URLError
 from urllib.parse import quote
@@ -57,6 +57,40 @@ _sessions: Dict[str, SessionState] = {}
 _dispatch_url: str = os.getenv("MUSIC_DISPATCH_URL", "").strip()
 
 
+def _pick_stream_url_from_info(info: Dict[str, Any]) -> Optional[str]:
+    # 1) direct url
+    direct = info.get("url")
+    if isinstance(direct, str) and direct:
+        return direct
+
+    # 2) requested formats (if extractor populated)
+    req_fmts = info.get("requested_formats") or []
+    for fmt in req_fmts:
+        u = fmt.get("url")
+        if isinstance(u, str) and u:
+            return u
+
+    # 3) pick best audio from formats
+    fmts = info.get("formats") or []
+    audio_candidates = []
+    for fmt in fmts:
+        # Keep formats with audio
+        acodec = fmt.get("acodec")
+        if acodec in (None, "none"):
+            continue
+        u = fmt.get("url")
+        if not isinstance(u, str) or not u:
+            continue
+        abr = fmt.get("abr") or 0
+        audio_candidates.append((abr, u))
+
+    if audio_candidates:
+        audio_candidates.sort(key=lambda x: x[0], reverse=True)
+        return audio_candidates[0][1]
+
+    return None
+
+
 def _resolve_audio_with_ytdlp(url_or_query: str) -> tuple[str, str]:
     """Resolve direct audio url and title using yt-dlp."""
     ydl_opts = {
@@ -71,11 +105,18 @@ def _resolve_audio_with_ytdlp(url_or_query: str) -> tuple[str, str]:
     if info is None:
         raise RuntimeError("Unable to resolve media info")
 
-    # yt-dlp may return a playlist wrapper
+    # yt-dlp may return a playlist wrapper (album, playlist...)
     if "entries" in info and info["entries"]:
-        info = info["entries"][0]
+        first_entry = info["entries"][0]
+        # Sometimes first entry has partial metadata without direct url.
+        # If webpage_url exists, re-resolve for richer fields.
+        first_webpage_url = first_entry.get("webpage_url")
+        if isinstance(first_webpage_url, str) and first_webpage_url:
+            info = ydl.extract_info(first_webpage_url, download=False)
+        else:
+            info = first_entry
 
-    stream_url = info.get("url")
+    stream_url = _pick_stream_url_from_info(info)
     title = info.get("title", "Unknown")
 
     if not stream_url:

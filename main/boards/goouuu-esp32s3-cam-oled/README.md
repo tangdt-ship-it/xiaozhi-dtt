@@ -58,7 +58,7 @@ To support voice-command music playback from those services, the server-side ass
 The firmware now exposes MCP tools to integrate with a backend music gateway:
 
 - `self.music.set_gateway_url(url)`
-- `self.music.play_online(query, provider="zingmp3")` (`query` can be a Zing track URL or Vietnamese song keyword)
+- `self.music.play_online(query, provider="zingmp3")` (`query` can be a Zing track URL, album URL, or Vietnamese song keyword)
 - `self.music.control(action)` where action is one of: `pause`, `resume`, `next`, `prev`, `stop`
 
 ### Suggested gateway API contract
