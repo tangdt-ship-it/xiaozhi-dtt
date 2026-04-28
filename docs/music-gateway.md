@@ -182,6 +182,42 @@ curl -X POST http://127.0.0.1:8787/v1/music/play \
 - substring of song title
 - substring of relative file path
 
+## Where to run MCP commands (`self.music.*`)?
+
+Important:
+
+- `self.music.set_gateway_url(...)` and `self.music.play_online(...)` are **MCP tool calls**, not normal browser URLs.
+- You do **not** run those in `http://192.168.x.x:8787` browser address bar.
+- You also do **not** run those in Xiaozhi homepage static UI fields unless that UI explicitly exposes MCP debug/tool-call capability.
+
+Practical execution options:
+
+1. **From your assistant/orchestrator environment** that can call MCP tools for the connected device session.
+2. **From a debug client** that sends tool-call JSON into the Xiaozhi conversation session.
+
+If you only have gateway + browser right now, you can still verify end-to-end media path by:
+
+1. Call `POST /v1/music/play` with `provider=local_vn` and a song query.
+2. Open returned `stream_url` (`/media/<track_id>`) in browser/VLC.
+
+This validates gateway/media serving independently from MCP orchestration.
+
+Windows quick test helper (no MCP required yet):
+
+```powershell
+cd C:\Espressif\frameworks\esp-idf-v5.5.2\xiaozhi-dtt
+powershell -ExecutionPolicy Bypass -File .\scripts\music_local_test.ps1 -GatewayUrl "http://127.0.0.1:8787" -SongQuery "Nơi Này Có Anh"
+```
+
+## For ESP32 playback: required sequence
+
+1. Flash firmware that already includes MCP music tools (`self.music.set_gateway_url`, `self.music.play_online`, `self.music.control`).
+2. Keep gateway running on your PC (`python scripts/music_gateway_server.py ...`).
+3. Ensure ESP32 and PC are in same LAN (ESP32 must reach `http://<PC-LAN-IP>:8787`).
+4. In MCP-capable chat/session, call:
+   - `self.music.set_gateway_url(url="http://<PC-LAN-IP>:8787")`
+   - `self.music.play_online(query="Tên bài", provider="local_vn")`
+
 ## Important notes
 
 - Keyword search is implemented by best-effort HTML parsing on Zing search page and may need updates if Zing changes markup.
