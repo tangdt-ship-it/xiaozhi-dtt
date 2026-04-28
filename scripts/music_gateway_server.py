@@ -177,6 +177,34 @@ def _extract_first_track_url_from_album_page(album_url: str) -> str:
     return "https://zingmp3.vn" + match.group(1)
 
 
+def _extract_first_track_url_from_album_with_ytdlp(album_url: str) -> str:
+    """
+    Extract first entry URL from album/playlist using yt-dlp flat extraction.
+    More robust than HTML scraping when page is JS-rendered.
+    """
+    ydl_opts = {
+        "quiet": True,
+        "skip_download": True,
+        "noplaylist": False,
+        "extract_flat": "in_playlist",
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(album_url, download=False)
+    entries = info.get("entries") if isinstance(info, dict) else None
+    if not entries:
+        raise RuntimeError("No entries found from yt-dlp album extraction")
+
+    first = entries[0]
+    for key in ("webpage_url", "url"):
+        v = first.get(key)
+        if isinstance(v, str) and v:
+            if v.startswith("http://") or v.startswith("https://"):
+                return v
+            if v.startswith("/"):
+                return "https://zingmp3.vn" + v
+    raise RuntimeError("No usable track URL in first album entry")
+
+
 def _extract_audio_url_from_zing_track_page(track_url: str) -> Optional[str]:
     """
     Fallback extractor for Zing track pages when yt-dlp cannot provide stream URL.
@@ -282,7 +310,10 @@ def play_music():
             try:
                 fallback_track_url = resolved_query
                 if "/album/" in resolved_query:
-                    fallback_track_url = _extract_first_track_url_from_album_page(resolved_query)
+                    try:
+                        fallback_track_url = _extract_first_track_url_from_album_with_ytdlp(resolved_query)
+                    except Exception:
+                        fallback_track_url = _extract_first_track_url_from_album_page(resolved_query)
                 fallback_stream = _extract_audio_url_from_zing_track_page(fallback_track_url)
                 if fallback_stream:
                     stream_url = fallback_stream
