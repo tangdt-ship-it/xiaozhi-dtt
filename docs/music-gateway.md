@@ -212,6 +212,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\music_local_test.ps1 -Gateway
 ## For ESP32 playback: required sequence
 
 1. Flash firmware that already includes MCP music tools (`self.music.set_gateway_url`, `self.music.play_online`, `self.music.control`).
+   - To reduce manual setup after flashing, set `Xiaozhi Assistant -> Default Music Gateway URL` in menuconfig
+     before build/flash (for example: `http://192.168.0.107:8787`).
 2. Keep gateway running on your PC (`python scripts/music_gateway_server.py ...`).
 3. Ensure ESP32 and PC are in same LAN (ESP32 must reach `http://<PC-LAN-IP>:8787`).
 4. In MCP-capable chat/session, call:

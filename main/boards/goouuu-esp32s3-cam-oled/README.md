@@ -20,6 +20,7 @@ Custom board profile for Goouuu ESP32-S3-WROOM-1-N16R8 camera dev board with the
 idf.py set-target esp32s3
 idf.py menuconfig
 # Xiaozhi Assistant -> Board Type -> Goouuu ESP32-S3-CAM + OLED (INMP441/MAX98357A)
+# Xiaozhi Assistant -> Default Music Gateway URL -> http://<PC-LAN-IP>:8787 (optional but recommended)
 idf.py build
 ```
 
@@ -60,6 +61,9 @@ The firmware now exposes MCP tools to integrate with a backend music gateway:
 - `self.music.set_gateway_url(url)`
 - `self.music.play_online(query, provider="zingmp3")` (`query` can be a Zing track URL, album URL, or Vietnamese song keyword)
 - `self.music.control(action)` where action is one of: `pause`, `resume`, `next`, `prev`, `stop`
+
+If `self.music.set_gateway_url` was never called, firmware will fallback to `CONFIG_MUSIC_GATEWAY_URL`
+from menuconfig (`Xiaozhi Assistant -> Default Music Gateway URL`) when provided.
 
 ### Suggested gateway API contract
 

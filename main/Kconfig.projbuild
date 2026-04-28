@@ -6,6 +6,13 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config MUSIC_GATEWAY_URL
+    string "Default Music Gateway URL"
+    default ""
+    help
+        Optional default music gateway URL used by MCP tools (self.music.*) when runtime setting is empty.
+        Example: http://192.168.0.107:8787
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS if !USE_EMOTE_MESSAGE_STYLE

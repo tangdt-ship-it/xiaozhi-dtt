@@ -149,6 +149,20 @@ void McpServer::AddUserOnlyTools() {
             return true;
         });
 
+    auto get_music_gateway_url = []() -> std::string {
+        Settings settings("music", false);
+        auto gateway_url = settings.GetString("gateway_url");
+        if (!gateway_url.empty()) {
+            return gateway_url;
+        }
+#ifdef CONFIG_MUSIC_GATEWAY_URL
+        if (strlen(CONFIG_MUSIC_GATEWAY_URL) > 0) {
+            return CONFIG_MUSIC_GATEWAY_URL;
+        }
+#endif
+        return "";
+    };
+
     // Online music control via backend gateway
     AddUserOnlyTool("self.music.set_gateway_url",
         "Set music gateway URL used to control online playback (e.g. zingmp3/youtube provider on server side).",
@@ -168,9 +182,8 @@ void McpServer::AddUserOnlyTools() {
             Property("query", kPropertyTypeString),
             Property("provider", kPropertyTypeString, "zingmp3")
         }),
-        [](const PropertyList& properties) -> ReturnValue {
-            Settings settings("music", false);
-            auto gateway_url = settings.GetString("gateway_url");
+        [get_music_gateway_url](const PropertyList& properties) -> ReturnValue {
+            auto gateway_url = get_music_gateway_url();
             if (gateway_url.empty()) {
                 throw std::runtime_error("Music gateway URL is not set. Use self.music.set_gateway_url first.");
             }
@@ -212,9 +225,8 @@ void McpServer::AddUserOnlyTools() {
         PropertyList({
             Property("action", kPropertyTypeString)
         }),
-        [](const PropertyList& properties) -> ReturnValue {
-            Settings settings("music", false);
-            auto gateway_url = settings.GetString("gateway_url");
+        [get_music_gateway_url](const PropertyList& properties) -> ReturnValue {
+            auto gateway_url = get_music_gateway_url();
             if (gateway_url.empty()) {
                 throw std::runtime_error("Music gateway URL is not set. Use self.music.set_gateway_url first.");
             }
