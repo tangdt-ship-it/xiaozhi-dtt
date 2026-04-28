@@ -76,3 +76,8 @@ The firmware now exposes MCP tools to integrate with a backend music gateway:
     - `{"ok": true}`
 
 The gateway is responsible for searching tracks on zingmp3.vn, handling authorization/token logic, and dispatching playable audio streams to this device session.
+
+For an end-to-end runnable reference gateway, see:
+
+- `docs/music-gateway.md`
+- `scripts/music_gateway_server.py`
