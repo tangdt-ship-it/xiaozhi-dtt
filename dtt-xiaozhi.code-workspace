@@ -1,0 +1,15 @@
+{
+    "folders": [
+        {
+            "name": "xiaozhi-firmware",
+            "path": "upstream_xiaozhi"
+        },
+        {
+            "name": "dtt-notes-and-old-src",
+            "path": "."
+        }
+    ],
+    "settings": {
+        "idf.currentSetup": "C:/Espressif/frameworks/esp-idf-v5.5.2/"
+    }
+}

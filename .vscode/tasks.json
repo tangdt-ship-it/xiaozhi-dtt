@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Xiaozhi: menuconfig",
+            "type": "shell",
+            "command": ".\\upstream_xiaozhi\\menuconfig.bat",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Xiaozhi: build",
+            "type": "shell",
+            "command": ".\\upstream_xiaozhi\\idf.bat build",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Xiaozhi: flash COM5",
+            "type": "shell",
+            "command": ".\\upstream_xiaozhi\\idf.bat -p COM5 flash",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
