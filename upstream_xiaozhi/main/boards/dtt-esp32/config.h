@@ -1,0 +1,60 @@
+#ifndef _BOARD_CONFIG_H_
+#define _BOARD_CONFIG_H_
+
+#include <driver/gpio.h>
+#include <driver/i2s_std.h>
+
+#define AUDIO_INPUT_SAMPLE_RATE  16000
+#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+
+// INMP441 microphone
+#define AUDIO_I2S_MIC_GPIO_WS   GPIO_NUM_1
+#define AUDIO_I2S_MIC_GPIO_SCK  GPIO_NUM_2
+#define AUDIO_I2S_MIC_GPIO_DIN  GPIO_NUM_42
+
+// MAX98357A speaker amplifier
+#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_39
+#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_40
+#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_41
+
+#define EXTERNAL_LED_GPIO       GPIO_NUM_8
+#define BUILTIN_LED_GPIO        GPIO_NUM_48
+#define BOOT_BUTTON_GPIO        GPIO_NUM_0
+
+// External LED PWM control
+#define EXTERNAL_LED_LEDC_TIMER       LEDC_TIMER_1
+#define EXTERNAL_LED_LEDC_CHANNEL     LEDC_CHANNEL_1
+#define EXTERNAL_LED_LEDC_MODE        LEDC_LOW_SPEED_MODE
+#define EXTERNAL_LED_LEDC_RESOLUTION  LEDC_TIMER_13_BIT
+#define EXTERNAL_LED_LEDC_MAX_DUTY    8191
+#define EXTERNAL_LED_PWM_FREQ_HZ      4000
+
+// PS2 wireless receiver
+#define PS2_CLK_GPIO            GPIO_NUM_14
+#define PS2_CMD_GPIO            GPIO_NUM_13
+#define PS2_ATT_GPIO            GPIO_NUM_12
+#define PS2_DAT_GPIO            GPIO_NUM_11
+#define PS2_CLOCK_DELAY_US      35
+#define PS2_POLL_INTERVAL_MS    120
+#define PS2_STICK_DEADZONE      35
+
+// OLED 0.91 inch SSD1306 128x32
+#define DISPLAY_SDA_PIN GPIO_NUM_47
+#define DISPLAY_SCL_PIN GPIO_NUM_21
+#define DISPLAY_WIDTH   128
+
+#if CONFIG_OLED_SSD1306_128X32
+#define DISPLAY_HEIGHT  32
+#elif CONFIG_OLED_SSD1306_128X64
+#define DISPLAY_HEIGHT  64
+#elif CONFIG_OLED_SH1106_128X64
+#define DISPLAY_HEIGHT  64
+#define SH1106
+#else
+#error "OLED display type is not selected"
+#endif
+
+#define DISPLAY_MIRROR_X true
+#define DISPLAY_MIRROR_Y true
+
+#endif // _BOARD_CONFIG_H_
